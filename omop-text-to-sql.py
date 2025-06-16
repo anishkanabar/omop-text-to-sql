@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 ""
 """
 Web‑based Text‑to‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
@@ -18,8 +20,6 @@ Changes
   `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceEndpoint`.
   Requires a free `HUGGINGFACEHUB_API_TOKEN`.
 """
-from __future__ import annotations
-
 import os
 import json
 
