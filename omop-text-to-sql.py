@@ -75,10 +75,8 @@ def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
         repo_id=model_repo,
         task="text-generation",
         huggingfacehub_api_token=hf_token,
-        model_kwargs={
-            "temperature": temperature,
-            "max_new_tokens": 512
-        }
+        temperature=temperature,
+        max_new_tokens=512
     )
 
     return create_sql_agent(
