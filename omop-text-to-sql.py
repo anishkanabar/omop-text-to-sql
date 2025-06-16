@@ -89,8 +89,8 @@ def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
 # -----------------------------------------------------------------------------
 
 def main():
-    #st.title("🔎 OMOP SynPUF Text-to-SQL Agent")
-    #st.markdown("Ask questions about the CMS SynPUF OMOP dataset.")
+    st.title("🔎 OMOP SynPUF Text-to-SQL Agent")
+    st.markdown("Ask questions about the CMS SynPUF OMOP dataset.")
 
     # BigQuery env vars
     project_id = os.getenv("GOOGLE_PROJECT_ID", "fluid-catfish-456819-v2")
