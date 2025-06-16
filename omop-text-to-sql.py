@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-""
 """
 Web‑based Text‑to‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
 =======================================================================
@@ -20,6 +17,8 @@ Changes
   `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceEndpoint`.
   Requires a free `HUGGINGFACEHUB_API_TOKEN`.
 """
+from __future__ import annotations
+
 import os
 import json
 
@@ -27,6 +26,11 @@ import streamlit as st
 from langchain_community.utilities import SQLDatabase
 from langchain.agents import AgentType, create_sql_agent
 from langchain_community.llms import HuggingFaceEndpoint
+
+# -----------------------------------------------------------------------------
+# Streamlit config must be the first command
+# -----------------------------------------------------------------------------
+st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
 
 # -----------------------------------------------------------------------------
 # Credential handling (BigQuery)
@@ -87,7 +91,6 @@ def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
 # -----------------------------------------------------------------------------
 
 def main():
-    st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
     st.title("🔎 OMOP SynPUF Text-to-SQL Agent")
     st.markdown("Ask questions about the CMS SynPUF OMOP dataset.")
 
