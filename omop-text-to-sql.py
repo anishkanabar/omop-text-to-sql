@@ -13,21 +13,22 @@ Changes
   `GOOGLE_APPLICATION_CREDENTIALS`.
 * **Updated for LangChain 0.2.0‑plus**: `SQLDatabase.from_uri` now expects
   the keyword `sample_rows_in_table_info`, not `sample_rows_in_table`.
-* **LLM fallback**: Replaces OpenAI with a free, local-compatible model via `langchain_community.llms.ollama`.
+* **Free hosted LLM**: Switched to Hugging Face Inference API (e.g.
+  `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceHub`.
+  Requires a free `HUGGINGFACEHUB_API_TOKEN`.
 """
 from __future__ import annotations
 
 import os
 import json
-from typing import Optional
 
 import streamlit as st
 from langchain_community.utilities import SQLDatabase
 from langchain.agents import AgentType, create_sql_agent
-from langchain_community.llms import Ollama
+from langchain_community.llms import HuggingFaceHub
 
 # -----------------------------------------------------------------------------
-# Credential handling
+# Credential handling (BigQuery)
 # -----------------------------------------------------------------------------
 json_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
 if json_creds:
@@ -54,8 +55,23 @@ def get_sql_database(project_id: str, dataset_id: str, sample_rows: int = 3) -> 
     uri = f"bigquery://{project_id}/{dataset_id}"
     return SQLDatabase.from_uri(uri, sample_rows_in_table_info=sample_rows)
 
-def build_agent(db: SQLDatabase, model_name: str = "llama3", temperature: float = 0.0):
-    llm = Ollama(model=model_name, temperature=temperature)
+
+def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
+    """Instantiate the HuggingFaceHub LLM + LangChain SQL agent."""
+    hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+    if not hf_token:
+        st.error(
+            "HUGGINGFACEHUB_API_TOKEN is missing. Add it to Streamlit secrets. "
+            "You can create a free token at https://huggingface.co/settings/tokens"
+        )
+        st.stop()
+
+    llm = HuggingFaceHub(
+        repo_id=model_repo,
+        huggingfacehub_api_token=hf_token,
+        model_kwargs={"temperature": temperature, "max_tokens": 512},
+    )
+
     return create_sql_agent(
         llm=llm,
         db=db,
@@ -73,9 +89,13 @@ def main():
     st.title("🔎 OMOP SynPUF Text-to-SQL Agent")
     st.markdown("Ask questions about the CMS SynPUF OMOP dataset.")
 
+    # BigQuery env vars
     project_id = os.getenv("GOOGLE_PROJECT_ID", "fluid-catfish-456819-v2")
     dataset_id = os.getenv("OMOP_DATASET_ID", "synpuf")
-    model_name = os.getenv("LLM_MODEL", "llama3")
+
+    # LLM model (Hugging Face repo)
+    model_repo = os.getenv("LLM_REPO", "meta-llama/Meta-Llama-3-8B-Instruct")
+    temperature = float(os.getenv("LLM_TEMPERATURE", "0.0"))
 
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
         st.error(
@@ -84,14 +104,17 @@ def main():
         )
         st.stop()
 
+    # Connect to BigQuery
     try:
         db = get_sql_database(project_id, dataset_id)
     except Exception as err:
         st.error(f"❌ Failed to connect to BigQuery: {err}")
         st.stop()
 
-    agent = build_agent(db, model_name=model_name)
+    # Build the agent
+    agent = build_agent(db, model_repo, temperature=temperature)
 
+    # UI
     user_query = st.text_input("❓ Enter your question:", placeholder="e.g. How many patients are over 65?")
 
     if st.button("Submit", use_container_width=True) and user_query:
