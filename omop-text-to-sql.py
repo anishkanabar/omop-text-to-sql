@@ -1,9 +1,9 @@
-""
+from __future__ import annotations
 """
-Web‑based Text‑to‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
+Web​‑based Text​‑to​‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
 =======================================================================
 
-This Streamlit app lets anyone ask natural‑language questions that are
+This Streamlit app lets anyone ask natural​‑language questions that are
 translated into SQL and executed against the SynPUF OMOP tables in
 BigQuery.
 
@@ -12,13 +12,12 @@ Changes
 * **Credential handling**: Reads `GOOGLE_APPLICATION_CREDENTIALS_JSON` from
   Streamlit secrets, validates it, writes to `/tmp/gcp-key.json`, and sets
   `GOOGLE_APPLICATION_CREDENTIALS`.
-* **Updated for LangChain 0.2.0‑plus**: `SQLDatabase.from_uri` now expects
+* **Updated for LangChain 0.2.0​‑plus**: `SQLDatabase.from_uri` now expects
   the keyword `sample_rows_in_table_info`, not `sample_rows_in_table`.
 * **Free hosted LLM**: Switched to Hugging Face Inference API (e.g.
   `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceEndpoint`.
   Requires a free `HUGGINGFACEHUB_API_TOKEN`.
 """
-from __future__ import annotations
 
 import os
 import json
@@ -106,7 +105,7 @@ def main():
 
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
         st.error(
-            "Google credentials not found. Add a service‑account key via "
+            "Google credentials not found. Add a service​‑account key via "
             "GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS."
         )
         st.stop()
