@@ -23,6 +23,7 @@ import os
 import json
 
 import streamlit as st
+print("Starting app...")
 st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
 
 from langchain_community.utilities import SQLDatabase
