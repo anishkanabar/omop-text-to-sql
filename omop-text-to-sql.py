@@ -13,6 +13,7 @@ Changes
   `GOOGLE_APPLICATION_CREDENTIALS`.
 * **Updated for LangChain 0.2.0‑plus**: `SQLDatabase.from_uri` now expects
   the keyword `sample_rows_in_table_info`, not `sample_rows_in_table`.
+* **LLM fallback**: Replaces OpenAI with a free, local-compatible model via `langchain_community.llms.ollama`.
 """
 from __future__ import annotations
 
@@ -21,9 +22,9 @@ import json
 from typing import Optional
 
 import streamlit as st
-from langchain_openai import ChatOpenAI
-from langchain.agents import AgentType, create_sql_agent
 from langchain_community.utilities import SQLDatabase
+from langchain.agents import AgentType, create_sql_agent
+from langchain_community.llms import Ollama
 
 # -----------------------------------------------------------------------------
 # Credential handling
@@ -51,12 +52,10 @@ if json_creds:
 def get_sql_database(project_id: str, dataset_id: str, sample_rows: int = 3) -> SQLDatabase:
     """Return a LangChain SQLDatabase connected to BigQuery."""
     uri = f"bigquery://{project_id}/{dataset_id}"
-    # New param name in langchain_community 0.2.0+
     return SQLDatabase.from_uri(uri, sample_rows_in_table_info=sample_rows)
 
-
-def build_agent(db: SQLDatabase, model_name: str = "gpt-4o-mini", temperature: float = 0.0):
-    llm = ChatOpenAI(model_name=model_name, temperature=temperature)
+def build_agent(db: SQLDatabase, model_name: str = "llama3", temperature: float = 0.0):
+    llm = Ollama(model=model_name, temperature=temperature)
     return create_sql_agent(
         llm=llm,
         db=db,
@@ -64,7 +63,6 @@ def build_agent(db: SQLDatabase, model_name: str = "gpt-4o-mini", temperature: f
         agent_type=AgentType.OPENAI_FUNCTIONS,
         handle_parsing_errors=True,
     )
-
 
 # -----------------------------------------------------------------------------
 # Streamlit UI
@@ -77,7 +75,7 @@ def main():
 
     project_id = os.getenv("GOOGLE_PROJECT_ID", "fluid-catfish-456819-v2")
     dataset_id = os.getenv("OMOP_DATASET_ID", "synpuf")
-    model_name = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    model_name = os.getenv("LLM_MODEL", "llama3")
 
     if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
         st.error(
