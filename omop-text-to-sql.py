@@ -1,3 +1,4 @@
+""
 """
 Web‑based Text‑to‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
 =======================================================================
@@ -83,7 +84,7 @@ def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
         llm=llm,
         db=db,
         verbose=True,
-        agent_type=AgentType.OPENAI_FUNCTIONS,
+        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
         handle_parsing_errors=True,
     )
 
