@@ -25,7 +25,7 @@ import json
 import streamlit as st
 st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
 
-from langchain_community.utilities import SQLDatabase
+#from langchain_community.utilities import SQLDatabase
 from langchain.agents import AgentType, create_sql_agent
 from langchain_community.llms import HuggingFaceEndpoint
 
