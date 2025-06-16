@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Streamlit secrets / credentials
+.streamlit/
+.env
+
+# Virtual envs
+.venv/
+env/
