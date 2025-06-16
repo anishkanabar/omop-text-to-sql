@@ -1,3 +1,4 @@
+""
 """
 Web‑based Text‑to‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
 =======================================================================
@@ -14,7 +15,7 @@ Changes
 * **Updated for LangChain 0.2.0‑plus**: `SQLDatabase.from_uri` now expects
   the keyword `sample_rows_in_table_info`, not `sample_rows_in_table`.
 * **Free hosted LLM**: Switched to Hugging Face Inference API (e.g.
-  `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceHub`.
+  `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceEndpoint`.
   Requires a free `HUGGINGFACEHUB_API_TOKEN`.
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ import json
 import streamlit as st
 from langchain_community.utilities import SQLDatabase
 from langchain.agents import AgentType, create_sql_agent
-from langchain_community.llms import HuggingFaceHub
+from langchain_community.llms import HuggingFaceEndpoint
 
 # -----------------------------------------------------------------------------
 # Credential handling (BigQuery)
@@ -57,7 +58,7 @@ def get_sql_database(project_id: str, dataset_id: str, sample_rows: int = 3) -> 
 
 
 def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
-    """Instantiate the HuggingFaceHub LLM + LangChain SQL agent."""
+    """Instantiate the HuggingFaceEndpoint LLM + LangChain SQL agent."""
     hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
     if not hf_token:
         st.error(
@@ -66,10 +67,11 @@ def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
         )
         st.stop()
 
-    llm = HuggingFaceHub(
+    llm = HuggingFaceEndpoint(
         repo_id=model_repo,
+        task="text-generation",
         huggingfacehub_api_token=hf_token,
-        model_kwargs={"temperature": temperature, "max_tokens": 512},
+        model_kwargs={"temperature": temperature, "max_new_tokens": 512},
     )
 
     return create_sql_agent(
