@@ -1,135 +1,46 @@
-from __future__ import annotations
-"""
-Web​‑based Text​‑to​‑SQL agent for the CMS SynPUF OMOP dataset in BigQuery.
-=======================================================================
-
-This Streamlit app lets anyone ask natural​‑language questions that are
-translated into SQL and executed against the SynPUF OMOP tables in
-BigQuery.
-
-Changes
--------
-* **Credential handling**: Reads `GOOGLE_APPLICATION_CREDENTIALS_JSON` from
-  Streamlit secrets, validates it, writes to `/tmp/gcp-key.json`, and sets
-  `GOOGLE_APPLICATION_CREDENTIALS`.
-* **Updated for LangChain 0.2.0​‑plus**: `SQLDatabase.from_uri` now expects
-  the keyword `sample_rows_in_table_info`, not `sample_rows_in_table`.
-* **Free hosted LLM**: Switched to Hugging Face Inference API (e.g.
-  `meta-llama/Meta-Llama-3-8B-Instruct`) via `langchain_community.llms.HuggingFaceEndpoint`.
-  Requires a free `HUGGINGFACEHUB_API_TOKEN`.
-"""
-
-import os
-import json
-
 import streamlit as st
-print("Starting app...")
+import os
+
+# Must be the first Streamlit command
 st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
 
-from langchain_community.utilities import SQLDatabase
-from langchain.agents import AgentType, create_sql_agent
-from langchain_community.llms import HuggingFaceEndpoint
+from langchain.llms import Ollama
+from langchain.agents import create_sql_agent
+from langchain.agents.agent_toolkits import SQLDatabaseToolkit
+from langchain.sql_database import SQLDatabase
 
-# -----------------------------------------------------------------------------
-# Credential handling (BigQuery)
-# -----------------------------------------------------------------------------
-json_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
-if json_creds:
-    try:
-        creds_dict = json.loads(json_creds)
-    except json.JSONDecodeError:
-        st.error(
-            "GOOGLE_APPLICATION_CREDENTIALS_JSON is not valid JSON. "
-            "Ensure the secret is a raw, multiline string containing the full key."
-        )
-        st.stop()
+# Page title and description
+st.title("OMOP Text-to-SQL Agent")
+st.markdown("Ask natural language questions and convert them to SQL over the OMOP database.")
 
-    creds_path = "/tmp/gcp-key.json"
-    with open(creds_path, "w") as f:
-        json.dump(creds_dict, f)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+# Sidebar for configuration
+with st.sidebar:
+    st.header("LLM & Database Config")
+    model = st.text_input("LLM Model (e.g., llama3)", value="llama3")
+    db_uri = st.text_input("DB URI", value=os.getenv("OMOP_DB_URI", "sqlite:///omop.db"))
 
-# -----------------------------------------------------------------------------
-# Helper functions
-# -----------------------------------------------------------------------------
+# Button to connect and generate the agent
+if st.button("Connect and Start Agent"):
+    with st.spinner("Setting up agent..."):
+        try:
+            llm = Ollama(model=model)
+            db = SQLDatabase.from_uri(db_uri)
+            toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+            agent_executor = create_sql_agent(llm=llm, toolkit=toolkit, verbose=True)
+            st.success("Agent ready! Ask your question below.")
+            st.session_state.agent = agent_executor
+        except Exception as e:
+            st.error(f"Failed to initialize: {e}")
 
-def get_sql_database(project_id: str, dataset_id: str, sample_rows: int = 3) -> SQLDatabase:
-    """Return a LangChain SQLDatabase connected to BigQuery."""
-    uri = f"bigquery://{project_id}/{dataset_id}"
-    return SQLDatabase.from_uri(uri, sample_rows_in_table_info=sample_rows)
-
-
-def build_agent(db: SQLDatabase, model_repo: str, temperature: float = 0.0):
-    """Instantiate the HuggingFaceEndpoint LLM + LangChain SQL agent."""
-    hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-    if not hf_token:
-        st.error(
-            "HUGGINGFACEHUB_API_TOKEN is missing. Add it to Streamlit secrets. "
-            "You can create a free token at https://huggingface.co/settings/tokens"
-        )
-        st.stop()
-
-    llm = HuggingFaceEndpoint(
-        repo_id=model_repo,
-        task="text-generation",
-        huggingfacehub_api_token=hf_token,
-        temperature=temperature,
-        max_new_tokens=512
-    )
-
-    return create_sql_agent(
-        llm=llm,
-        db=db,
-        verbose=True,
-        agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-        handle_parsing_errors=True,
-    )
-
-# -----------------------------------------------------------------------------
-# Streamlit UI
-# -----------------------------------------------------------------------------
-
-def main():
-    st.title("🔎 OMOP SynPUF Text-to-SQL Agent")
-    st.markdown("Ask questions about the CMS SynPUF OMOP dataset.")
-
-    # BigQuery env vars
-    project_id = os.getenv("GOOGLE_PROJECT_ID", "fluid-catfish-456819-v2")
-    dataset_id = os.getenv("OMOP_DATASET_ID", "synpuf")
-
-    # LLM model (Hugging Face repo)
-    model_repo = os.getenv("LLM_REPO", "meta-llama/Meta-Llama-3-8B-Instruct")
-    temperature = float(os.getenv("LLM_TEMPERATURE", "0.0"))
-
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        st.error(
-            "Google credentials not found. Add a service​‑account key via "
-            "GOOGLE_APPLICATION_CREDENTIALS_JSON or GOOGLE_APPLICATION_CREDENTIALS."
-        )
-        st.stop()
-
-    # Connect to BigQuery
-    try:
-        db = get_sql_database(project_id, dataset_id)
-    except Exception as err:
-        st.error(f"❌ Failed to connect to BigQuery: {err}")
-        st.stop()
-
-    # Build the agent
-    agent = build_agent(db, model_repo, temperature=temperature)
-
-    # UI
-    user_query = st.text_input("❓ Enter your question:", placeholder="e.g. How many patients are over 65?")
-
-    if st.button("Submit", use_container_width=True) and user_query:
-        with st.spinner("Running query..."):
+# Text input for query
+if "agent" in st.session_state:
+    user_query = st.text_input("Enter your question")
+    if user_query:
+        with st.spinner("Generating SQL..."):
             try:
-                answer = agent.run(user_query)
-                st.success("✅ Response")
-                st.write(answer)
+                result = st.session_state.agent.run(user_query)
+                st.code(result, language="sql")
             except Exception as e:
-                st.error(f"⚠️ Error: {e}")
-
-
-if __name__ == "__main__":
-    main()
+                st.error(f"Error running query: {e}")
+else:
+    st.info("Start the agent to enable question input.")
