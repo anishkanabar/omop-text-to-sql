@@ -1,46 +1,84 @@
 import streamlit as st
 import os
-
-# Must be the first Streamlit command
-st.set_page_config(page_title="OMOP Text-to-SQL", layout="wide")
-
+from google.cloud import bigquery
 from langchain.llms import Ollama
-from langchain.agents import create_sql_agent
-from langchain.agents.agent_toolkits import SQLDatabaseToolkit
-from langchain.sql_database import SQLDatabase
+from langchain.agents import Tool, AgentType, initialize_agent
 
-# Page title and description
-st.title("OMOP Text-to-SQL Agent")
-st.markdown("Ask natural language questions and convert them to SQL over the OMOP database.")
+# Set Streamlit page config FIRST
+st.set_page_config(page_title="OMOP SynPUF Text-to-SQL on BigQuery", layout="wide")
 
-# Sidebar for configuration
-with st.sidebar:
-    st.header("LLM & Database Config")
-    model = st.text_input("LLM Model (e.g., llama3)", value="llama3")
-    db_uri = st.text_input("DB URI", value=os.getenv("OMOP_DB_URI", "sqlite:///omop.db"))
+# --- GCP credentials ---
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = r"C:\Users\TNEL\Downloads\fluid-catfish-456819-v2-a835705834b7.json"
 
-# Button to connect and generate the agent
-if st.button("Connect and Start Agent"):
-    with st.spinner("Setting up agent..."):
+# --- Initialize BigQuery Client ---
+client = bigquery.Client()
+PROJECT = "fluid-catfish-456819-v2"
+DATASET = "synpuf"  # e.g. "hhs_synpuf"
+FULL_DATASET = f"{PROJECT}.{DATASET}"
+
+# --- List all tables in the dataset ---
+@st.cache_data
+def list_tables():
+    tables = client.list_tables(f"{FULL_DATASET}")
+    return [table.table_id for table in tables]
+
+available_tables = list_tables()
+
+# --- Let user choose a table ---
+selected_table = st.selectbox("Choose a table from the SynPUF dataset:", available_tables)
+
+# --- Run BigQuery with selected table in scope ---
+def run_bigquery(query: str):
+    job = client.query(query, location="US")
+    return [dict(row) for row in job.result()]
+
+# --- LangChain Tool wrapping BigQuery ---
+def bigquery_tool_fn(query: str) -> str:
+    if selected_table not in query:
+        return f"Error: Query must include the selected table `{selected_table}`"
+    try:
+        rows = run_bigquery(query)
+        if not rows:
+            return "Query returned no results."
+        return str(rows[:5])
+    except Exception as e:
+        return f"Query error: {e}"
+
+bigquery_tool = Tool(
+    name="bigquery_query",
+    func=bigquery_tool_fn,
+    description=f"Run SQL queries against the `{selected_table}` table in the SynPUF dataset."
+)
+
+# --- Ollama LLM ---
+llm = Ollama(model="llama3")
+
+# --- Create LangChain agent ---
+agent_executor = initialize_agent(
+    
+system_message = (
+    "You are an SQL assistant for BigQuery. "
+    "All tables live in dataset `synpuf` (location US) "
+    "inside the current project. "
+    "Always reference tables as `synpuf.table_name`."
+    ),
+    tools=[bigquery_tool],
+    llm=llm,
+    agent_type=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
+    max_iterations=5,
+    handle_parsing_errors=True
+)
+
+# --- Streamlit UI ---
+st.title("🩺 OMOP SynPUF Text-to-SQL (BigQuery)")
+user_query = st.text_area("Enter your natural language question (must use the selected table):")
+
+if st.button("Run Query") and user_query.strip():
+    with st.spinner("Thinking..."):
         try:
-            llm = Ollama(model=model)
-            db = SQLDatabase.from_uri(db_uri)
-            toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-            agent_executor = create_sql_agent(llm=llm, toolkit=toolkit, verbose=True)
-            st.success("Agent ready! Ask your question below.")
-            st.session_state.agent = agent_executor
+            result = agent_executor.run(user_query)
+            st.subheader("💬 Response")
+            st.text(result)
         except Exception as e:
-            st.error(f"Failed to initialize: {e}")
-
-# Text input for query
-if "agent" in st.session_state:
-    user_query = st.text_input("Enter your question")
-    if user_query:
-        with st.spinner("Generating SQL..."):
-            try:
-                result = st.session_state.agent.run(user_query)
-                st.code(result, language="sql")
-            except Exception as e:
-                st.error(f"Error running query: {e}")
-else:
-    st.info("Start the agent to enable question input.")
+            st.error(f"Agent error: {e}")
