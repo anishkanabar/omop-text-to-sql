@@ -3,7 +3,7 @@
 A Streamlit web app that lets you ask natural‑language questions and runs
 LLM‑generated SQL against the CMS SynPUF OMOP dataset in BigQuery.
 
-![screenshot](docs/screenshot.png)
+![screenshot](examples/ex1.png)
 
 ## Quick start (local)
 
