@@ -1,6 +1,6 @@
 # OMOP SynPUF Text‑to‑SQL Agent 🌐
 
-A Streamlit web app that lets you ask natural‑language questions and runs
+A Streamlit web app that lets you ask natural language questions and runs
 LLM‑generated SQL against the CMS SynPUF OMOP dataset in BigQuery.
 
 ![screenshot](examples/ex1.png)
