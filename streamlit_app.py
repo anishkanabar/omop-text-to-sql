@@ -111,7 +111,7 @@ schema_tool = Tool(
 llm = Ollama(model="llama3")
 
 prompt = PromptTemplate(
-    input_variables=["input", "agent_scratchpad", "tools", "table"],
+    input_variables=["input", "agent_scratchpad", "tools", "tool_names", "table"],
     template="""
 You are a BigQuery SQL assistant. The active table is `{table}`.
 
@@ -134,6 +134,20 @@ Begin!
 Question: {input}
 {agent_scratchpad}
 """
+)
+
+tools = [bigquery_tool, schema_tool]
+
+prompt_with_vars = prompt.partial(
+    table=active_table,
+    tools="\n".join(f"{tool.name}: {tool.description}" for tool in tools),
+    tool_names=[tool.name for tool in tools],
+)
+
+react_agent = create_react_agent(
+    llm=llm,
+    tools=tools,
+    prompt=prompt_with_vars,
 )
 
 # ------------------------
