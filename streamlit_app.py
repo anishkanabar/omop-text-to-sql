@@ -1,5 +1,6 @@
 # streamlit_app.py
 import os
+import json
 import re
 import streamlit as st
 from google.cloud import bigquery
@@ -25,7 +26,13 @@ PROJECT  = "fluid-catfish-456819-v2"
 DATASET  = "synpuf"
 BQ_PATH  = f"{PROJECT}.{DATASET}"
 
-client = bigquery.Client()
+if "GCP" in st.secrets:
+    # running on Streamlit Cloud
+    info = json.loads(st.secrets["GCP"]["SERVICE_ACCOUNT_JSON"])
+    client = bigquery.Client.from_service_account_info(info)
+else:
+    # local dev: fall back to default ADC
+    client = bigquery.Client()
 
 # --------------------------------------------------
 # 2. Cached helper – list tables
