@@ -111,7 +111,7 @@ schema_tool = Tool(
 llm = Ollama(model="llama3")
 
 prompt = PromptTemplate(
-    input_variables=["input", "agent_scratchpad", "tools"],
+    input_variables=["input", "agent_scratchpad", "tools", "table"],
     template="""
 You are a BigQuery SQL assistant. The active table is `{table}`.
 
