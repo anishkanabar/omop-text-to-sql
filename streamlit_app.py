@@ -7,6 +7,7 @@ from google.oauth2 import service_account
 from langchain_community.llms import Ollama
 from langchain.agents import Tool, create_react_agent, AgentExecutor
 from langchain_core.prompts import PromptTemplate
+from langchain_community.llms import HuggingFaceHub
 
 # ------------------------
 # 0. Streamlit page config
@@ -108,7 +109,10 @@ schema_tool = Tool(
 # ------------------------
 # 8. LLM and prompt setup
 # ------------------------
-llm = Ollama(model="llama3")
+llm = HuggingFaceHub(
+    repo_id="tiiuae/falcon-7b-instruct",  # or another suitable hosted model
+    model_kwargs={"temperature": 0.7, "max_new_tokens": 512}
+)
 
 prompt = PromptTemplate(
     input_variables=["input", "agent_scratchpad", "tools", "tool_names", "table"],
