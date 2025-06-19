@@ -111,8 +111,8 @@ schema_tool = Tool(
 llm = HuggingFaceEndpoint(
     repo_id="tiiuae/falcon-7b-instruct",
     huggingfacehub_api_token=st.secrets["HUGGINGFACEHUB_API_TOKEN"],
-    temperature=0.3,
-    max_new_tokens=512,
+    temperature=0.1,
+    max_new_tokens=128,
 )
 
 prompt = PromptTemplate(
@@ -182,3 +182,5 @@ if st.button("Run") and user_input.strip():
             st.code(response["output"])
         except Exception as e:
             st.error(f"Agent error: {e}")
+
+            
