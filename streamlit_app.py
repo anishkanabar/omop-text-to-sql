@@ -114,6 +114,9 @@ You are a BigQuery SQL assistant. Active table: `{table}`.
 Tools:
 {tool_descriptions}
 
+Tool list:
+{tools}
+
 Use the format:
 Question: the question to answer
 Thought: reasoning step
