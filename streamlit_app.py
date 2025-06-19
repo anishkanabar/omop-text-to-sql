@@ -27,11 +27,11 @@ DATASET  = "synpuf"
 BQ_PATH  = f"{PROJECT}.{DATASET}"
 
 if "GCP" in st.secrets:
-    # running on Streamlit Cloud
-    info = json.loads(st.secrets["GCP"]["SERVICE_ACCOUNT_JSON"])
-    client = bigquery.Client.from_service_account_info(info)
+    # st.secrets["GCP"] is already a dict with the right keys
+    sa_info = dict(st.secrets["GCP"])
+    client = bigquery.Client.from_service_account_info(sa_info)
 else:
-    # local dev: fall back to default ADC
+    # fall back to ADC for local dev
     client = bigquery.Client()
 
 # --------------------------------------------------
