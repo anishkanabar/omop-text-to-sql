@@ -136,6 +136,10 @@ Question: {input}
 """
 )
 
+# ------------------------
+# 9. Initialize React Agent & AgentExecutor
+# ------------------------
+
 tools = [bigquery_tool, schema_tool]
 
 prompt_with_vars = prompt.partial(
@@ -148,17 +152,6 @@ react_agent = create_react_agent(
     llm=llm,
     tools=tools,
     prompt=prompt_with_vars,
-)
-
-# ------------------------
-# 9. Initialize React Agent & AgentExecutor
-# ------------------------
-tools = [bigquery_tool, schema_tool]
-
-react_agent = create_react_agent(
-    llm=llm,
-    tools=tools,
-    prompt=prompt.partial(table=active_table),
 )
 
 agent_executor = AgentExecutor(agent=react_agent, tools=tools)
