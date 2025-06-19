@@ -5,7 +5,7 @@ import json
 import streamlit as st
 from google.cloud import bigquery
 
-# LangChain imports (v0.2+)
+# LangChain v0.2+ imports
 from langchain_core.tools import Tool
 from langchain.agents.react.agent import create_react_agent
 from langchain.agents import AgentExecutor
@@ -18,21 +18,21 @@ from langchain_huggingface import HuggingFaceEndpoint
 st.set_page_config(page_title="OMOP SynPUF Text‑to‑SQL", layout="wide")
 
 # --------------------------------------------------
-# 1. Secrets → BigQuery client
+# 1. Secrets -> BigQuery client
 # --------------------------------------------------
 if "GCP" not in st.secrets or "HUGGINGFACEHUB_API_TOKEN" not in st.secrets:
-    st.error("Add GCP service‑account and Hugging Face token in secrets.toml.")
+    st.error("❌ Add GCP credentials and Hugging Face token in secrets.toml.")
     st.stop()
 
 sa_info = dict(st.secrets["GCP"])
 bq_client = bigquery.Client.from_service_account_info(sa_info)
 
-PROJECT = sa_info["project_id"]        # e.g. fluid-catfish-456819-v2
-DATASET = "synpuf"
-BQ_PATH = f"{PROJECT}.{DATASET}"
+PROJECT  = sa_info["project_id"]  # e.g. fluid-catfish-456819-v2
+DATASET  = "synpuf"
+BQ_PATH  = f"{PROJECT}.{DATASET}"
 
 # --------------------------------------------------
-# 2. List tables (cache)
+# 2. Cache table list
 # --------------------------------------------------
 @st.cache_data(show_spinner=False)
 def list_tables():
@@ -41,13 +41,13 @@ def list_tables():
 tables = list_tables()
 
 # --------------------------------------------------
-# 3. Pick active table
+# 3. UI – choose table
 # --------------------------------------------------
 st.sidebar.header("Choose OMOP table")
 active_table = st.sidebar.selectbox("Table", tables)
 
 # --------------------------------------------------
-# 4. BigQuery helpers
+# 4. Helper functions
 # --------------------------------------------------
 def run_bigquery(sql: str):
     job = bq_client.query(sql, location="US")
@@ -57,7 +57,7 @@ def _sanitize(name: str) -> str:
     return re.sub(r"[`\s\'\"]+", "", name)
 
 # --------------------------------------------------
-# 5. Tools
+# 5. Define tools
 # --------------------------------------------------
 def sql_tool_fn(sql: str) -> str:
     sql = sql.replace("\n", " ")
@@ -85,11 +85,11 @@ bigquery_tool = Tool("bigquery_query", sql_tool_fn, "Run SQL on the active table
 schema_tool   = Tool("describe_table", describe_table_fn, "Show a table's schema.")
 
 tools = [bigquery_tool, schema_tool]
-tool_names_str = ", ".join(t.name for t in tools)
-tool_desc_str  = "\n".join(f"{t.name}: {t.description}" for t in tools)
+tool_names_str  = ", ".join(t.name for t in tools)
+tool_desc_str   = "\n".join(f"{t.name}: {t.description}" for t in tools)
 
 # --------------------------------------------------
-# 6. LLM (Hugging Face endpoint)
+# 6. Hosted LLM via Hugging Face
 # --------------------------------------------------
 llm = HuggingFaceEndpoint(
     repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
@@ -99,26 +99,30 @@ llm = HuggingFaceEndpoint(
 )
 
 # --------------------------------------------------
-# 7. Prompt template & agent
+# 7. PromptTemplate & ReAct agent
 # --------------------------------------------------
 prompt = PromptTemplate(
-    input_variables=["input", "agent_scratchpad", "table", "tool_descriptions", "tool_names"],
+    input_variables=["input", "agent_scratchpad"],
+    partial_variables={
+        "table": f"{BQ_PATH}.{active_table}",
+        "tool_descriptions": tool_desc_str,
+        "tool_names": tool_names_str,
+    },
     template="""
 You are a BigQuery SQL assistant. Active table: `{table}`.
 
-You have access to these tools:
+Tools:
 {tool_descriptions}
 
-Use this interaction format:
-
+Use the format:
 Question: the question to answer
-Thought: you should think what to do
+Thought: reasoning step
 Action: one of [{tool_names}]
-Action Input: the input for that action
-Observation: the result
-... (repeat Thought / Action / Action Input / Observation)
+Action Input: input for the action
+Observation: result of the action
+... (iterate Thought/Action/Observation as needed)
 Thought: I now know the final answer
-Final Answer: the answer to the original question
+Final Answer: answer to the original question
 
 Begin!
 
@@ -130,11 +134,7 @@ Question: {input}
 react_agent = create_react_agent(
     llm=llm,
     tools=tools,
-    prompt=prompt.partial(
-        table=f"{BQ_PATH}.{active_table}",
-        tool_descriptions=tool_desc_str,
-        tool_names=tool_names_str,
-    ),
+    prompt=prompt,
     stop_sequence="Observation:",
 )
 
@@ -143,20 +143,18 @@ agent_executor = AgentExecutor(agent=react_agent, tools=tools, verbose=True)
 # --------------------------------------------------
 # 8. Streamlit UI
 # --------------------------------------------------
-st.title("🩺 OMOP SynPUF Text‑to‑SQL")
+st.title("🩺 OMOP SynPUF Text‑to‑SQL (BigQuery)")
 st.markdown(
-    f"**Project**: `{PROJECT}` · **Dataset**: `{DATASET}` · "
-    f"**Table**: `{active_table}`"
+    f"**Project:** `{PROJECT}` · **Dataset:** `{DATASET}` · **Table:** `{active_table}`"
 )
 
-query = st.text_area("Ask a question (natural language or raw SQL):")
+query = st.text_area("Ask a question (natural language or SQL):")
 
 if st.button("Run") and query.strip():
     with st.spinner("Running…"):
         try:
             result = agent_executor.invoke({"input": query})
-            answer = result.get("output", "")
             st.success("Answer")
-            st.code(answer)
+            st.code(result.get("output", ""))
         except Exception as exc:
             st.error(f"Agent error: {exc}")
