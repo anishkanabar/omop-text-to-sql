@@ -7,6 +7,10 @@ from google.cloud import bigquery
 from langchain.llms import Ollama
 from langchain.agents import Tool, AgentType, initialize_agent
 
+from langchain.llms import HuggingFaceHub
+from langchain.embeddings import HuggingFaceHubEmbeddings
+
+
 # --------------------------------------------------
 # 0. Streamlit page config
 # --------------------------------------------------
@@ -111,7 +115,12 @@ schema_tool = Tool(
 # --------------------------------------------------
 # 8. LLM & agent
 # --------------------------------------------------
-llm = Ollama(model="llama3")
+# llm = Ollama(model="llama3")
+llm = HuggingFaceHub(
+    repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
+    model_kwargs={"temperature": 0.5, "max_new_tokens": 512},
+    huggingfacehub_api_token=st.secrets["HUGGINGFACEHUB_API_TOKEN"]
+)
 
 system_msg = (
     "You are a BigQuery SQL assistant. "
