@@ -109,7 +109,7 @@ schema_tool = Tool(
 # 8. LLM and prompt setup
 # ------------------------
 llm = HuggingFaceEndpoint(
-    repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
+    repo_id="tiiuae/falcon-7b-instruct",
     huggingfacehub_api_token=st.secrets["HUGGINGFACEHUB_API_TOKEN"],
     temperature=0.3,
     max_new_tokens=512,
