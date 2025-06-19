@@ -18,7 +18,7 @@ st.set_page_config(
 # 1. BigQuery credentials & constants
 # --------------------------------------------------
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-    r"C:\Users\TNEL\Downloads\fluid-catfish-456819-v2-a835705834b7.json"
+    r"C:\Users\TNEL\Downloads\fluid-catfish-456819-v2-78faca2a45b6.json"
 )
 
 PROJECT  = "fluid-catfish-456819-v2"
