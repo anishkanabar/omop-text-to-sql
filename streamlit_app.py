@@ -111,10 +111,8 @@ schema_tool = Tool(
 llm = HuggingFaceEndpoint(
     endpoint_url=f"https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct",
     huggingfacehub_api_token=st.secrets["HUGGINGFACEHUB_API_TOKEN"],
-    model_kwargs={
-        "temperature": 0.1,
-        "max_new_tokens": 128,
-    },
+    temperature = 0.1,
+    max_new_tokens = 512,
 )
 
 prompt = PromptTemplate(
