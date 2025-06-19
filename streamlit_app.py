@@ -4,7 +4,6 @@ import re
 import streamlit as st
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from langchain_community.llms import Ollama
 from langchain.agents import Tool, create_react_agent, AgentExecutor
 from langchain_core.prompts import PromptTemplate
 from langchain_community.llms import HuggingFaceHub
@@ -110,8 +109,12 @@ schema_tool = Tool(
 # 8. LLM and prompt setup
 # ------------------------
 llm = HuggingFaceHub(
-    repo_id="tiiuae/falcon-7b-instruct",  # or another suitable hosted model
-    model_kwargs={"temperature": 0.7, "max_new_tokens": 512}
+    repo_id="meta-llama/Meta-Llama-3-8B-Instruct",
+    huggingfacehub_api_token=st.secrets["HUGGINGFACEHUB_API_TOKEN"],
+    model_kwargs={
+        "temperature": 0.5,
+        "max_new_tokens": 512
+    }
 )
 
 prompt = PromptTemplate(
