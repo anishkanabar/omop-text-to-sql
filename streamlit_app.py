@@ -102,7 +102,7 @@ llm = HuggingFaceEndpoint(
 # 7. PromptTemplate & ReAct agent
 # --------------------------------------------------
 prompt = PromptTemplate(
-    input_variables=["input", "agent_scratchpad"],
+    input_variables=["input", "agent_scratchpad", "tools"],
     partial_variables={
         "table": f"{BQ_PATH}.{active_table}",
         "tool_descriptions": tool_desc_str,
