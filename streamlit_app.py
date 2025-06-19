@@ -3,6 +3,7 @@ import os
 import re
 import streamlit as st
 from google.cloud import bigquery
+from google.oauth2 import service_account
 from langchain_community.llms import Ollama
 from langchain.agents import Tool, create_react_agent, AgentExecutor
 from langchain_core.prompts import PromptTemplate
@@ -26,7 +27,12 @@ PROJECT = "fluid-catfish-456819-v2"
 DATASET = "synpuf"
 BQ_PATH = f"{PROJECT}.{DATASET}"
 
-client = bigquery.Client()
+gcp_info = st.secrets["gcp"]
+
+credentials = service_account.Credentials.from_service_account_info(gcp_info)
+project_id = gcp_info["project_id"]
+
+client = bigquery.Client(credentials=credentials, project=project_id)
 
 # ------------------------
 # 2. Cached helper to list tables
