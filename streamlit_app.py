@@ -145,7 +145,6 @@ react_agent = create_react_agent(
     llm=llm,
     tools=tools,
     prompt=prompt.partial(table=active_table),
-    verbose=True,
 )
 
 agent_executor = AgentExecutor(agent=react_agent, tools=tools)
