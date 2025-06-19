@@ -115,6 +115,9 @@ llm = HuggingFaceEndpoint(
     max_new_tokens=128,
 )
 
+response = llm.generate(["What is 2 + 2?"])
+st.write(response.generations[0][0].text)
+
 prompt = PromptTemplate(
     input_variables=["input", "agent_scratchpad", "tools", "tool_names", "table"],
     template="""
