@@ -60,17 +60,24 @@ def _sanitize(name: str) -> str:
 # 6. Tool A – SQL query tool
 # --------------------------------------------------
 def sql_tool(sql: str) -> str:
-    sql = sql.replace("\n", " ")   # squash accidental newlines
-    if f"FROM {active_table}" in sql and BQ_PATH not in sql:
-        sql = sql.replace(f"FROM {active_table}",
-                          f"FROM `{BQ_PATH}.{active_table}`")
-    if BQ_PATH not in sql:
-        return (f"⚠️ Query must reference `{BQ_PATH}.{active_table}`.")
     try:
+        # Strip outer backticks if agent wrapped the whole query in backticks
+        sql = sql.strip("`").replace("\n", " ")
+
+        # Inject full path if only table name is used
+        if f"FROM {active_table}" in sql and f"`{BQ_PATH}.{active_table}`" not in sql:
+            sql = sql.replace(f"FROM {active_table}", f"FROM `{BQ_PATH}.{active_table}`")
+
+        # Safety check: ensure it contains the full path
+        if f"{BQ_PATH}.{active_table}" not in sql:
+            return f"⚠️ Query must reference `{BQ_PATH}.{active_table}`."
+
         rows = run_bigquery(sql)
         return "Query returned no rows." if not rows else str(rows[:5])
+
     except Exception as e:
         return f"Query error: {e}"
+
 
 bigquery_tool = Tool(
     name="bigquery_query",
@@ -112,6 +119,7 @@ system_msg = (
     "Always use fully‑qualified table names. "
     "If unsure of columns, call `describe_table` with the bare table name. "
     "Do NOT put LIMIT after aggregation functions like AVG() or COUNT()."
+    "Wrap table names in backticks like `project.dataset.table`, but DO NOT wrap the full SQL statement in backticks."
 )
 
 agent = initialize_agent(
@@ -139,10 +147,15 @@ user_input = st.text_area("Ask a question (natural language or SQL):")
 if st.button("Run") and user_input.strip():
     with st.spinner("Thinking…"):
         try:
-            # ----------- KEY CHANGE -----------
             response_dict = agent.invoke({"input": user_input})
-            answer = response_dict.get("output", "No response.")
-            # ----------- END CHANGE -----------
+            full_answer = response_dict.get("output", "No response.")
+
+            # Extract only text after "Final Answer:"
+            if "Final Answer:" in full_answer:
+                answer = full_answer.split("Final Answer:")[1].strip()
+            else:
+                answer = full_answer.strip()
+
             st.success("Agent response")
             st.code(answer)
         except Exception as e:
