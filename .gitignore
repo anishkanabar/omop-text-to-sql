@@ -10,3 +10,6 @@ __pycache__/
 # Virtual envs
 .venv/
 env/
+
+# Local paths
+config.json

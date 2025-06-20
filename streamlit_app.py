@@ -1,5 +1,6 @@
 # streamlit_app.py
 import os
+import json
 import re
 import streamlit as st
 from google.cloud import bigquery
@@ -17,12 +18,16 @@ st.set_page_config(
 # --------------------------------------------------
 # 1. BigQuery credentials & constants
 # --------------------------------------------------
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
-    r"C:\Users\TNEL\Downloads\fluid-catfish-456819-v2-78faca2a45b6.json"
-)
+# Load config
+with open("config.json", "r") as f:
+    config = json.load(f)
 
-PROJECT  = "fluid-catfish-456819-v2"
-DATASET  = "synpuf"
+# Set environment variable
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["GOOGLE_APPLICATION_CREDENTIALS"]
+
+# Assign variables
+PROJECT = config["PROJECT"]
+DATASET = config["DATASET"]
 BQ_PATH  = f"{PROJECT}.{DATASET}"
 
 client = bigquery.Client()
@@ -103,22 +108,60 @@ schema_tool = Tool(
     description="Return columns & types for a table (e.g. 'person').",
 )
 
+
 # --------------------------------------------------
-# 8. LLM & agent
+# 8. Tool D – concept lookup
+# --------------------------------------------------
+def lookup_concept(term: str) -> str:
+    """Search OMOP concept table for standard concepts by name."""
+    sql = f"""
+        SELECT concept_id, concept_name, vocabulary_id, domain_id
+        FROM `{BQ_PATH}.concept`
+        WHERE LOWER(concept_name) LIKE '%{term.lower()}%'
+        AND standard_concept = 'S'
+        ORDER BY LENGTH(concept_name)
+        LIMIT 5
+    """
+    try:
+        rows = run_bigquery(sql)
+        if not rows:
+            return f"No matching standard concepts found for '{term}'."
+        return "\n".join(
+            f"{r['concept_id']}: {r['concept_name']} ({r['vocabulary_id']}, {r['domain_id']})"
+            for r in rows
+        )
+    except Exception as e:
+        return f"Concept lookup error: {e}"
+
+concept_lookup_tool = Tool(
+    name="lookup_concept",
+    func=lookup_concept,
+    description=(
+        "Use this to search the OMOP concept table for standard concepts by keyword. "
+        "Input should be a term like 'ecg', 'blood pressure', 'glucose'. "
+        "Returns concept_id and details."
+    ),
+)
+
+# --------------------------------------------------
+# 9. LLM & agent
 # --------------------------------------------------
 llm = Ollama(model="llama3")
 
 system_msg = (
     "You are a BigQuery SQL assistant for the OMOP SynPUF dataset. "
     f"The project is `{PROJECT}` and the dataset is `{DATASET}`. "
+    "You must only reference tables in this dataset. "
     "Use fully qualified table names like `project.dataset.table`. "
-    "If unsure of columns, call `describe_table('table')`. "
+    "If unsure of the correct table name, call `list_tables()`. "
     "You may join across tables as needed. "
-    "If you need to see which tables are available, call `list_tables()`."
+    "If you need to check column names, call `describe_table('table')`."
+    "You can use `lookup_concept('keyword')` to find standard concept IDs from the OMOP concept table. "
+    "Use the returned concept_id in queries, for example in `procedure_occurrence.procedure_concept_id`."
 )
 
 agent = initialize_agent(
-    tools=[bigquery_tool, schema_tool, list_tables_tool],
+    tools=[bigquery_tool, schema_tool, concept_lookup_tool],
     llm=llm,
     agent_type=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     system_message=system_msg,
@@ -128,7 +171,7 @@ agent = initialize_agent(
 )
 
 # --------------------------------------------------
-# 9. Streamlit UI
+# 10. Streamlit UI
 # --------------------------------------------------
 st.title("🩺 OMOP SynPUF Text‑to‑SQL (BigQuery)")
 st.markdown(
