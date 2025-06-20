@@ -37,59 +37,54 @@ def list_tables():
 tables = list_tables()
 
 # --------------------------------------------------
-# 3. UI – choose active table
-# --------------------------------------------------
-st.sidebar.header("Choose OMOP table")
-active_table = st.sidebar.selectbox("Table", tables)
-
-# --------------------------------------------------
-# 4. Helper – run BigQuery queries
+# 3. Helper – run BigQuery queries
 # --------------------------------------------------
 def run_bigquery(sql: str):
     job = client.query(sql, location="US")
     return [dict(r) for r in job.result()]
 
 # --------------------------------------------------
-# 5. Sanitize utility
+# 4. Sanitize utility
 # --------------------------------------------------
 def _sanitize(name: str) -> str:
     """Strip quotes, back‑ticks, whitespace/newlines."""
     return re.sub(r"[`\s\'\"]+", "", name)
 
 # --------------------------------------------------
-# 6. Tool A – SQL query tool
+# 5. Tool A – SQL query tool
 # --------------------------------------------------
 def sql_tool(sql: str) -> str:
+    sql = sql.replace("\n", " ")
     try:
-        # Strip outer backticks if agent wrapped the whole query in backticks
-        sql = sql.strip("`").replace("\n", " ")
-
-        # Inject full path if only table name is used
-        if f"FROM {active_table}" in sql and f"`{BQ_PATH}.{active_table}`" not in sql:
-            sql = sql.replace(f"FROM {active_table}", f"FROM `{BQ_PATH}.{active_table}`")
-
-        # Safety check: ensure it contains the full path
-        if f"{BQ_PATH}.{active_table}" not in sql:
-            return f"⚠️ Query must reference `{BQ_PATH}.{active_table}`."
-
         rows = run_bigquery(sql)
         return "Query returned no rows." if not rows else str(rows[:5])
-
     except Exception as e:
         return f"Query error: {e}"
-
 
 bigquery_tool = Tool(
     name="bigquery_query",
     func=sql_tool,
     description=(
-        f"Run StandardSQL against `{BQ_PATH}.{active_table}` "
-        "and return the first 5 rows."
+        f"Run StandardSQL against tables in `{BQ_PATH}` and return the first 5 rows. "
+        "Query must use fully qualified table names like `project.dataset.table`."
     ),
 )
 
 # --------------------------------------------------
-# 7. Tool B – describe table schema
+# 6. Tool B – List tables tool
+# --------------------------------------------------
+def list_tables_tool(_: str = "") -> str:
+    return "\n".join(tables)
+
+# Correct tool definition
+list_tables_tool = Tool(
+    name="list_tables",
+    func=list_tables_tool,
+    description="List all available tables in the dataset."
+)
+
+# --------------------------------------------------
+# 7. Tool C – describe table schema
 # --------------------------------------------------
 def describe_table(table: str) -> str:
     table = _sanitize(table)
@@ -114,16 +109,16 @@ schema_tool = Tool(
 llm = Ollama(model="llama3")
 
 system_msg = (
-    "You are a BigQuery SQL assistant. "
-    f"The active table is `{BQ_PATH}.{active_table}`. "
-    "Always use fully‑qualified table names. "
-    "If unsure of columns, call `describe_table` with the bare table name. "
-    "Do NOT put LIMIT after aggregation functions like AVG() or COUNT()."
-    "Wrap table names in backticks like `project.dataset.table`, but DO NOT wrap the full SQL statement in backticks."
+    "You are a BigQuery SQL assistant for the OMOP SynPUF dataset. "
+    f"The project is `{PROJECT}` and the dataset is `{DATASET}`. "
+    "Use fully qualified table names like `project.dataset.table`. "
+    "If unsure of columns, call `describe_table('table')`. "
+    "You may join across tables as needed. "
+    "If you need to see which tables are available, call `list_tables()`."
 )
 
 agent = initialize_agent(
-    tools=[bigquery_tool, schema_tool],
+    tools=[bigquery_tool, schema_tool, list_tables_tool],
     llm=llm,
     agent_type=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
     system_message=system_msg,
@@ -139,7 +134,6 @@ st.title("🩺 OMOP SynPUF Text‑to‑SQL (BigQuery)")
 st.markdown(
     f"**Project**: `{PROJECT}`  &nbsp;|&nbsp;  "
     f"**Dataset**: `{DATASET}`  &nbsp;|&nbsp;  "
-    f"**Table**: `{active_table}`"
 )
 
 user_input = st.text_area("Ask a question (natural language or SQL):")
@@ -150,13 +144,11 @@ if st.button("Run") and user_input.strip():
             response_dict = agent.invoke({"input": user_input})
             full_answer = response_dict.get("output", "No response.")
 
-            # Extract only text after "Final Answer:"
-            if "Final Answer:" in full_answer:
-                answer = full_answer.split("Final Answer:")[1].strip()
-            else:
-                answer = full_answer.strip()
+            # Extract only the final answer, stripping all reasoning steps
+            final_match = re.search(r"Final Answer:\s*(.*)", full_answer, re.DOTALL | re.IGNORECASE)
+            answer = final_match.group(1).strip() if final_match else full_answer.strip()
 
-            st.success("Agent response")
-            st.code(answer)
+            st.success("Answer")
+            st.write(answer)
         except Exception as e:
             st.error(f"Agent error: {e}")
